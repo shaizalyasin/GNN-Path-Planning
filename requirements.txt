@@ -1,0 +1,7 @@
+numpy==1.26.4 # numpy: For grid math.
+matplotlib==3.8.3 # matplotlib: To draw the maps.
+networkx==3.2.1 # networkx: To handle graph structures.
+scikit-learn==1.4.1.post1 # scikit-learn: For calculating metrics (accuracy/precision) later.
+tqdm==4.66.2 # tqdm: Creates progress bars (useful when generating 5,000 maps).
+torch>=2.2.0 # torch & torch_geometric: For the AI/Deep Learning model.
+torch_geometric>=2.5.0
