@@ -36,7 +36,7 @@ model.py - Contains the GNN architecture.
 
 train.py - The training loop.
 
-dataset/ - Where we store the generated maps (CSVs).
+dataset/ - Where we store the generated maps (pts).
 
 ## For the Team
 
