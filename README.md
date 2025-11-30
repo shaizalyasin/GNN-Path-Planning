@@ -24,15 +24,23 @@ We will measure:
      git clone https://github.com/shaizalyasin/GNN-Path-Planning.git
    ```
 2. Install the necessary libraries:
-   pip install -r requirements.txt
+   ```bash
+     pip install -r requirements.txt
+   ```
 
 ## Project Structure
+
 generator.py - Creates the random maps and solves them with A*.
+
 model.py - Contains the GNN architecture.
+
 train.py - The training loop.
+
 dataset/ - Where we store the generated maps (CSVs).
 
 ## For the Team
+
 Main Branch: Keep this clean. Only push working code here.
+
 New Features: Create a new branch (e.g., feature-model-design) before you start coding.
    
