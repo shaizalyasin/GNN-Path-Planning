@@ -21,7 +21,7 @@ We will measure:
 
 1. Clone the repo:
    ```bash
-     git clone [https://github.com/shaizalyasin/GNN-Path-Planning.git](https://github.com/shaizalyasin/GNN-Path-Planning.git)
+     git clone https://github.com/shaizalyasin/GNN-Path-Planning.git
    ```
 2. Install the necessary libraries:
    pip install -r requirements.txt
