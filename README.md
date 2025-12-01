@@ -21,26 +21,45 @@ We will measure:
 
 1. Clone the repo:
    ```bash
-     git clone https://github.com/shaizalyasin/GNN-Path-Planning.git
+   git clone https://github.com/shaizalyasin/GNN-Path-Planning.git
+   cd GNN-Path-Planning
    ```
+   
 2. Install the necessary libraries:
    ```bash
      pip install -r requirements.txt
    ```
+## How to Run
+We use main.py as the command center.
+
+**1. Run a quick demo:**
+
+```bash
+python main.py --mode demo
+```
+**2. Generate Training Data:** This creates 1,000 maps and saves them to data/dataset_v1.pt.
+
+```bash
+python main.py --mode generate --samples 1000
+```
 
 ## Project Structure
-
-generator.py - Creates the random maps and solves them with A*.
-
-model.py - Contains the GNN architecture.
-
-train.py - The training loop.
-
-dataset/ - Where we store the generated maps (pts).
+```
+├── data/               # Stores generated datasets (.pt files)
+├── models/             # Stores trained model weights (.pth files)
+├── src/
+│   ├── astar.py        # The A* algorithm logic
+│   ├── generator.py    # Generates maps & creates datasets
+│   ├── gnn_model.py    # The GNN architecture (Brain)
+│   ├── train.py        # Training loop
+│   └── utils.py        # Graph conversion & visualization tools
+├── main.py             # Entry point for running demos & generation
+└── requirements.txt    # Dependencies
+```
 
 ## For the Team
 
-Main Branch: Keep this clean. Only push working code here.
+**Main Branch:** Keep this clean. Only push working code here.
 
-New Features: Create a new branch (e.g., feature-model-design) before you start coding.
+**New Features:** Create a new branch (e.g., feature-model-design) before you start coding.
    
