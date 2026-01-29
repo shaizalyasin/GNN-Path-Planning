@@ -1,0 +1,156 @@
+\documentclass[aspectratio=169]{beamer}
+
+% =========================
+% Packages
+% =========================
+\usepackage{amsmath, amsfonts, amssymb, mathtools}
+\usepackage{bm}
+\usepackage{physics}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usetheme{CambridgeUS}
+\usecolortheme{default}
+
+% =========================
+% Metadata
+% =========================
+\title[Learning-Based Path Planning]{
+Comparative Analysis of Data-Driven GNN-Based Path Planning\\
+and Classical Search Algorithms
+}
+\author[Muhammad Shaizal Yasin]{
+Muhammad Shaizal Yasin \\
+Navneet Kishan \\
+Isroilbek Jamolov \\
+Md. Rakibul Hasan
+}
+\institute[FAU]{Friedrich-Alexander-Universität (FAU) \\ \textit{	
+Introduction to Control and Machine Learning}}
+\date{February 2nd, 2026}
+
+% =========================
+% Convenience macros
+% =========================
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\calD}{\mathcal{D}}
+\newcommand{\calL}{\mathcal{L}}
+\newcommand{\calN}{\mathcal{N}}
+\newcommand{\bbone}{\mathbb{1}}
+\newcommand{\argmin}{\operatornamewithlimits{arg\,min}}
+\newcommand{\softmax}{\operatorname{softmax}}
+\newcommand{\sigmoid}{\operatorname{\sigma}}
+
+%-------------------------------------------------
+\begin{document}
+
+%-------------------------------------------------
+\begin{frame}
+\titlepage
+\end{frame}
+
+%-------------------------------------------------
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+% =================================================
+% 1) Intro + Motivation + Problem Definition
+% =================================================
+\section{Motivation \& Problem Formulation}
+
+\begin{frame}{The Path Planning Dilemma}{Optimality vs. Scalability}
+    \begin{columns}
+        \column{0.6\textwidth}
+        \textbf{The Goal:} Find a collision-free path $\pi^*$ from $S$ to $G$.
+        
+        \vspace{0.4cm}
+        \textbf{The Classical Trade-off:}
+        \begin{itemize}
+            \item \textbf{Search Algorithms (A*):} 
+            \begin{itemize}
+                \item \alert{Pros:} Guarantees optimality (shortest path).
+                \item \alert{Cons:} Computationally expensive. Cost $\propto$ Nodes Expanded.
+            \end{itemize}
+            \item \textbf{Heuristics:}
+            \begin{itemize}
+                \item Performance depends entirely on the heuristic $h(n)$.
+                \item Calculating complex heuristics is slow.
+            \end{itemize}
+        \end{itemize}
+        
+        \column{0.38\textwidth}
+        \centering
+        \begin{block}{The Research Question}
+            Can we replace this expensive search process with a learned ‘intuition’? Can a GNN look at a map and directly output the optimal path? 
+        \end{block}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Problem Formulation}{Defining the Search Space}
+    We model the environment as a grid graph $G = (V, E)$.
+    
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item \textbf{Nodes ($V$):} Free cells in an $N \times N$ grid ($N=20$).
+        \item \textbf{Edges ($E$):} Defined by 4-connectivity:
+        \[ (u, v) \in E \iff \|u - v\|_1 = 1 \]
+        \item \textbf{Objective:} Find a sequence of nodes $\pi = (v_1, \dots, v_T)$ such that:
+    \end{itemize}
+    
+    \begin{equation*}
+        \pi^\star = \argmin_{\pi \in \Pi} \sum_{t=1}^{T-1} c(v_t, v_{t+1})
+    \end{equation*}
+    
+    In our uniform-cost setting, $c(\cdot) = 1$, minimizing \textbf{hop count}.
+\end{frame}
+
+% =================================================
+% 2) Classical Search Algorithms
+% =================================================
+\section{Classical Search Algorithms}
+
+\begin{frame}{BFS \& Dijkstra}{Uninformed Search}
+    Before applying Deep Learning, we establish classical baselines.
+    
+    \vspace{0.4cm}
+    \begin{columns}
+        \column{0.48\textwidth}
+        \textbf{1. Breadth-First Search (BFS)}
+        \begin{itemize}
+            \item Explores in "layers" (ripples).
+            \item \textbf{Optimality:} Guaranteed for unweighted graphs.
+            \item \textbf{Drawback:} Expands in all directions equally.
+            \[ O(|V| + |E|) \]
+        \end{itemize}
+
+        \column{0.48\textwidth}
+        \textbf{2. Dijkstra's Algorithm}
+        \begin{itemize}
+            \item Generalized BFS for weighted graphs.
+            \item Relaxes edges: $d(v) = \min(d(v), d(u) + w_{uv})$.
+            \item \textbf{In our grid:} Reduces to BFS since $w=1$.
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{A* Search}{Informed Search}
+    A* directs the search towards the goal using a heuristic function.
+    
+    \begin{block}{The Cost Function}
+        \[ f(n) = \underbrace{g(n)}_{\text{Cost-to-come}} + \underbrace{h(n)}_{\text{Heuristic (Estimated cost-to-go)}} \]
+    \end{block}
+
+    \vspace{0.2cm}
+    \textbf{Implementation Details:}
+    \begin{itemize}
+        \item We use \textbf{Manhattan Distance} as the admissible heuristic:
+        \[ h(n) = |n_x - goal_x| + |n_y - goal_y| \]
+        \item \textbf{Key Property:} Since $h(n) \leq h^*(n)$, A* guarantees the optimal path.
+    \end{itemize}
+    
+    \vspace{0.2cm}
+    \textit{This algorithm serves as the "Teacher" to generate ground-truth labels for our GNN.}
+\end{frame}
