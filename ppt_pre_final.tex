@@ -1,0 +1,874 @@
+\documentclass[aspectratio=169]{beamer}
+
+% =========================
+% Packages
+% =========================
+\usepackage{amsmath, amsfonts, amssymb, mathtools}
+\usepackage{bm}
+\usepackage{physics}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[export]{adjustbox}
+
+\usetheme{CambridgeUS}
+\usecolortheme{default}
+
+% =========================
+% Metadata
+% =========================
+\title[Learning-Based Path Planning]{
+Comparative Analysis of Data-Driven GNN-Based Path Planning\\
+and Classical Search Algorithms
+}
+
+% IMPORTANT: define \author ONLY ONCE.
+% Optional short form in [] is used in headers/metadata; full form in {} is shown on title slide.
+\author[Group Presentation]{
+Navneet Kishan Srinivasan\\
+Muhammad Shaizal Yasin \\
+Isroilbek Jamolov \\
+Md. Rakibul Hasan
+}
+
+\institute[FAU]{Friedrich-Alexander-Universität (FAU) \\ \textit{Introduction to Control and Machine Learning}}
+\date{February 2nd, 2026}
+
+% =========================
+% Convenience macros
+% =========================
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\calD}{\mathcal{D}}
+\newcommand{\calL}{\mathcal{L}}
+\newcommand{\calN}{\mathcal{N}}
+\newcommand{\bbone}{\mathbb{1}}
+\newcommand{\argmin}{\operatornamewithlimits{arg\,min}}
+\newcommand{\softmax}{\operatorname{softmax}}
+\newcommand{\sigmoid}{\operatorname{\sigma}}
+
+% =========================
+% Speaker macros (4 speakers)
+% =========================
+\newcommand{\spkA}{Muhammad Shaizal Yasin}
+\newcommand{\spkB}{Navneet Kishan Srinivasan}
+\newcommand{\spkC}{Isroilbek Jamolov}
+\newcommand{\spkD}{Md. Rakibul Hasan}
+
+% Current speaker (set per frame)
+\newcommand{\currentspeaker}{All}
+\newcommand{\setspeaker}[1]{\gdef\currentspeaker{#1}}
+
+% =========================
+% Footline: Speaker (left) | Title (center) | Slide # (right)
+% =========================
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    % LEFT: Speaker name
+    \begin{beamercolorbox}[wd=.33\paperwidth,ht=2.25ex,dp=1ex,left]{author in head/foot}%
+      \hspace{0.6em}\scriptsize\textbf{Speaker:}~\currentspeaker
+    \end{beamercolorbox}%
+    % CENTER: Short title
+    \begin{beamercolorbox}[wd=.34\paperwidth,ht=2.25ex,dp=1ex,center]{title in head/foot}%
+      \scriptsize\insertshorttitle
+    \end{beamercolorbox}%
+    % RIGHT: Frame numbers
+    \begin{beamercolorbox}[wd=.33\paperwidth,ht=2.25ex,dp=1ex,right]{date in head/foot}%
+      \scriptsize\insertframenumber{} / \inserttotalframenumber\hspace{0.8em}
+    \end{beamercolorbox}%
+  }%
+  \vskip0pt%
+}
+
+% Optional: hide navigation symbols
+\setbeamertemplate{navigation symbols}{}
+
+%-------------------------------------------------
+\begin{document}
+
+%-------------------------------------------------
+\begin{frame}
+\setspeaker{All}
+\titlepage
+\end{frame}
+
+%-------------------------------------------------
+\begin{frame}{Outline}
+\setspeaker{\spkA}
+\tableofcontents
+\end{frame}
+
+% =================================================
+% 1) Intro + Motivation + Problem Definition
+% =================================================
+\section{Motivation \& Problem Formulation}
+
+\begin{frame}{The Path Planning Dilemma}
+\setspeaker{\spkA}
+\framesubtitle{Optimality vs. Scalability}
+
+    \begin{columns}
+        \column{0.6\textwidth}
+        \textbf{The Goal:} Find a collision-free path $\pi^*$ from $S$ to $G$.
+        
+        \vspace{0.4cm}
+        \textbf{The Classical Trade-off:}
+        \begin{itemize}
+            \item \textbf{Search Algorithms (A*):} 
+            \begin{itemize}
+                \item \alert{Pros:} Guarantees optimality (shortest path).
+                \item \alert{Cons:} Computationally expensive. Cost $\propto$ Nodes Expanded.
+            \end{itemize}
+            \item \textbf{Heuristics:}
+            \begin{itemize}
+                \item Performance depends entirely on the heuristic $h(n)$.
+                \item Calculating complex heuristics is slow.
+            \end{itemize}
+        \end{itemize}
+        
+        \column{0.38\textwidth}
+        \centering
+        \begin{block}{The Research Question}
+            Can we replace this expensive search process with a learned ‘intuition’? Can a GNN look at a map and directly output the optimal path? 
+        \end{block}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Problem Formulation}{Defining the Search Space}
+    \setspeaker{\spkB} % e.g., Navneet Kishan
+    
+    We model the environment as a grid graph $G = (V, E)$.
+    
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item \textbf{Nodes ($V$):} Free cells in an $N \times N$ grid ($N=20$).
+        \item \textbf{Edges ($E$):} Defined by 4-connectivity:
+        \[ (u, v) \in E \iff \|u - v\|_1 = 1 \]
+        \item \textbf{Objective:} Find a sequence of nodes $\pi = (v_1, \dots, v_T)$ such that:
+    \end{itemize}
+    
+    \begin{equation*}
+        \pi^\star = \argmin_{\pi \in \Pi} \sum_{t=1}^{T-1} c(v_t, v_{t+1})
+    \end{equation*}
+    
+    In our uniform-cost setting, $c(\cdot) = 1$, minimizing \textbf{hop count}.
+\end{frame}
+
+% =================================================
+% 2) Classical Search Algorithms
+% =================================================
+\section{Classical Search Algorithms}
+
+\begin{frame}{BFS \& Dijkstra}{Uninformed Search}
+    Before applying Deep Learning, we establish classical baselines.
+    
+    \vspace{0.4cm}
+    \begin{columns}
+        \column{0.48\textwidth}
+        \textbf{1. Breadth-First Search (BFS)}
+        \begin{itemize}
+            \item Explores in "layers" (ripples).
+            \item \textbf{Optimality:} Guaranteed for unweighted graphs.
+            \item \textbf{Drawback:} Expands in all directions equally.
+            \[ O(|V| + |E|) \]
+        \end{itemize}
+
+        \column{0.48\textwidth}
+        \textbf{2. Dijkstra's Algorithm}
+        \begin{itemize}
+            \item Generalized BFS for weighted graphs.
+            \item Relaxes edges: $d(v) = \min(d(v), d(u) + w_{uv})$.
+            \item \textbf{In our grid:} Reduces to BFS since $w=1$.
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{A* Search}{Informed Search}
+    A* directs the search towards the goal using a heuristic function.
+    
+    \begin{block}{The Cost Function}
+        \[ f(n) = \underbrace{g(n)}_{\text{Cost-to-come}} + \underbrace{h(n)}_{\text{Heuristic (Estimated cost-to-go)}} \]
+    \end{block}
+
+    \vspace{0.2cm}
+    \textbf{Implementation Details:}
+    \begin{itemize}
+        \item We use \textbf{Manhattan Distance} as the admissible heuristic:
+        \[ h(n) = |n_x - goal_x| + |n_y - goal_y| \]
+        \item \textbf{Key Property:} Since $h(n) \leq h^*(n)$, A* guarantees the optimal path.
+    \end{itemize}
+    
+    \vspace{0.2cm}
+    \textit{This algorithm serves as the "Teacher" to generate ground-truth labels for our GNN.}
+\end{frame}
+
+% =================================================
+% 3) Proposed Method: GNN Planner
+% =================================================
+\section{Proposed Method: GNN Planner}
+
+\begin{frame}{Learning Formulation}{What the model predicts}
+We learn a per-node predictor:
+\[
+\hat y_i \approx P(v_i \in \pi^\star \mid G,s,g).
+\]
+Define node features $\bm{x}_i\in\R^8$ (as in the notebook):
+\[
+\bm{x}_i =
+\big[
+\underbrace{\text{isBlocked}}_{1},
+\underbrace{\text{isStart}}_{1},
+\underbrace{\text{isGoal}}_{1},
+\underbrace{x_{\text{norm}},y_{\text{norm}}}_{2},
+\underbrace{d_{\text{Man}}(i,g)_{\text{norm}}, d_{\text{Man}}(i,s)_{\text{norm}}}_{2},
+\underbrace{d_{\text{Euc}}(i,g)_{\text{norm}}}_{1}
+\big].
+\]
+Training signal: soft labels $y_i\in\{0,0.3,1\}$ (converted to hard for metrics in evaluation).
+\end{frame}
+
+\begin{frame}{Message Passing}{GraphSAGE-style layer (used in code)}
+The notebook model uses GraphSAGE convolution layers (SAGEConv).
+Abstractly, with embeddings $\bm{h}^{(k)}_i\in\R^p$:
+\[
+\bm{h}_i^{(k+1)} =
+\sigma\Big(
+\bm{W}^{(k)}\bm{h}_i^{(k)}
+\;+\;
+\bm{U}^{(k)} \cdot
+\textsc{Agg}\{ \bm{h}_j^{(k)}: j\in\calN(i)\}
+\Big),
+\]
+where \textsc{Agg} is typically mean aggregation, and $\sigma(\cdot)$ is a nonlinearity.
+
+\vspace{0.2cm}
+In our implementation:
+\begin{itemize}
+    \item $L=5$ layers,
+    \item hidden dim $p=128$,
+    \item dropout $0.2$ after each layer,
+    \item final linear head to a single logit per node.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Output Head and Probabilities}{From embeddings to node probabilities}
+Let the final embedding be $\bm{h}_i^{(L)}$. The model produces a logit:
+\[
+z_i = \bm{w}^\top \bm{h}_i^{(L)} + b,
+\]
+and probability:
+\[
+\hat y_i = \sigmoid(z_i)=\frac{1}{1+e^{-z_i}}.
+\]
+
+Two ways we use $\hat y$ in the notebook:
+\begin{itemize}
+    \item \textbf{Greedy decoding} (policy-like): always move to neighbor with maximum $\hat y$.
+    \item \textbf{Hybrid search} (Neural A*): use $\hat y$ as a bias term within A* scoring.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Decoding 1: Greedy Path Reconstruction}{Simple but fragile}
+Given start $s$, goal $g$, and probabilities $\hat y$:
+\[
+v_{t+1} = \argmax_{u\in \calN(v_t)\setminus \text{Visited}} \hat y_u.
+\]
+Stop when reaching $g$ or no valid candidates.
+
+\textbf{Why it can fail:}
+\begin{itemize}
+    \item local maxima: high-probability region that does not connect to goal,
+    \item no backtracking: once a wrong step is taken, recovery is hard,
+    \item graph connectivity constraints: predicted ``path mask'' may be disconnected.
+\end{itemize}
+Empirically, this shows up as low success rate despite good per-node metrics.
+\end{frame}
+
+\begin{frame}{Decoding 2: Neural A* (GNN-guided)}{Hybrid that preserves search structure}
+The notebook defines a modified A* score:
+\[
+f(n) = g(n) + h(n) + \alpha\cdot (1-\hat y_n),
+\]
+where:
+\begin{itemize}
+    \item $g(n)$: cost-to-come (unit steps),
+    \item $h(n)$: Manhattan heuristic,
+    \item $\hat y_n$: GNN probability for node $n$,
+    \item $\alpha>0$: strength of the learned bias.
+\end{itemize}
+Interpretation:
+\[
+(1-\hat y_n)\ \text{penalises low-probability nodes} \Rightarrow \text{search is nudged toward predicted path regions.}
+\]
+In the notebook, $\alpha=2.0$ is used.
+\end{frame}
+
+% =================================================
+% 4) Implementation
+% =================================================
+\section{Implementation}
+
+\begin{frame}{Data Generation Pipeline}{From random grids to PyG graphs}
+Pipeline used:
+\begin{enumerate}
+    \item Sample grid with obstacle probability $p_{\text{block}}=0.2$.
+    \item Sample start/goal from free cells.
+    \item Run pure A* to get $\pi^\star$ (discard if no path).
+    \item Convert grid to PyG graph:
+    \[
+    \text{Data}(x\in\R^{|V|\times 8},\ edge\_index\in\{1,\dots,|V|\}^{2\times |E|},\ y\in\R^{|V|}).
+    \]
+    \item Apply soft labels ($1.0/0.3/0.0$).
+\end{enumerate}
+
+Dataset size in the notebook run:
+\[
+|\calD|\approx 1186 \quad \text{(after discarding invalid samples)}.
+\]
+Split:
+\[
+70\%/15\%/15\% \Rightarrow (830,178,178).
+\]
+\end{frame}
+
+\begin{frame}{Training Setup}{Loss, imbalance handling, optimiser}
+Model: GraphSAGE, $L=5$, hidden $128$, dropout $0.2$.
+
+\vspace{0.2cm}
+Loss: BCE with logits, computed \textbf{only on free cells}:
+\[
+\calL =
+-\sum_{i\in \text{Free}} \Big(
+y_i\log \sigmoid(z_i) + (1-y_i)\log(1-\sigmoid(z_i))
+\Big).
+\]
+
+Class imbalance is handled via \textbf{pos\_weight}:
+\[
+\calL_{\text{pw}} = \text{BCEWithLogitsLoss}(\text{pos\_weight}),
+\qquad
+\text{pos\_weight} \approx \frac{\#\text{neg}}{\#\text{pos}} \approx 17.995.
+\]
+
+Optimiser:
+\[
+\theta \leftarrow \theta - \eta \nabla_\theta \calL,\quad \eta=10^{-3} \ \ (\text{Adam}).
+\]
+\end{frame}
+
+\begin{frame}{Evaluation Protocol}{Thresholding, metrics, and why F1 matters}
+Probabilities are thresholded:
+\[
+\hat y_i^{(\text{hard})} = \bbone[\sigmoid(z_i)>\tau].
+\]
+Soft labels are converted to hard for metrics:
+\[
+y_i^{(\text{hard})}=\bbone[y_i\ge 0.5].
+\]
+
+We report:
+\[
+\text{Accuracy}=\frac{TP+TN}{TP+TN+FP+FN},
+\quad
+\text{Precision}=\frac{TP}{TP+FP},
+\quad
+\text{Recall}=\frac{TP}{TP+FN},
+\]
+\[
+F_1=\frac{2\cdot \text{Prec}\cdot \text{Rec}}{\text{Prec}+\text{Rec}}.
+\]
+
+Because positives are sparse (path nodes), \textbf{accuracy can look high even when path quality is poor}; hence we tune $\tau$ on validation to maximise $F_1$.
+\end{frame}
+
+% =================================================
+% 5) Experiments & Results
+% =================================================
+\section{Experiments \& Results}
+
+\begin{frame}{Threshold Tuning Result}{Validation F1 maximisation}
+Validation sweep chooses:
+\[
+\tau^\star = \argmax_{\tau\in[0,1]} F_1(\tau).
+\]
+In the notebook:
+\[
+\tau^\star \approx 0.85,\qquad F_1^{(\text{val})}\approx 0.427.
+\]
+
+Interpretation:
+\begin{itemize}
+    \item a relatively high threshold reduces false positives (important in sparse labels),
+    \item but may miss true path nodes if the model is under-confident.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Test Classification Metrics (Node-Level)}{As reported in the notebook}
+With $\tau^\star=0.85$, test performance:
+\[
+\text{Loss}\approx 0.7233,\quad
+\text{Acc}\approx 0.9277,\quad
+\text{Prec}\approx 0.3493,\quad
+\text{Rec}\approx 0.5779,\quad
+F_1\approx 0.4355.
+\]
+
+\vspace{0.2cm}
+Reading this correctly:
+\begin{itemize}
+    \item accuracy is inflated by many negatives (non-path nodes),
+    \item precision/recall/F1 better reflect detection of the path structure,
+    \item node-level metrics do \textbf{not} automatically imply successful path reconstruction.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Planner-Level Evaluation}{Pure A* vs Greedy-GNN vs Neural A*}
+Planners evaluated on the same test graphs:
+\begin{itemize}
+    \item \textbf{Pure A*}: baseline, Manhattan heuristic.
+    \item \textbf{Greedy-GNN}: follow max-prob neighbor.
+    \item \textbf{Neural A*}: A* with bias $\alpha(1-\hat y)$, $\alpha=2.0$.
+\end{itemize}
+
+Reported outcomes:
+\begin{align*}
+\text{success: } & \text{A*}=1.0,\ \text{Greedy}\approx 0.348,\ \text{Neural A*}=1.0,\\
+\mathbb{E}[|\pi|]:\ & \text{A*}\approx 14.43,\ \text{Greedy}\approx 17.98,\ \text{Neural A*}\approx 14.43.
+\end{align*}
+
+Key point: \textbf{GNN-only greedy decoding fails often}, but \textbf{hybrid search retains success and optimal-length behavior in this setting}.
+\end{frame}
+
+\begin{frame}{Runtime and Expansions}{Why expansions matter more than wall-clock}
+Average times (seconds, as measured):
+\[
+t_{\text{A*}}\approx 4.56\!\times\!10^{-4},\quad
+t_{\text{Greedy}}\approx 8.34\!\times\!10^{-4},\quad
+t_{\text{Neural}}\approx 9.45\!\times\!10^{-4}.
+\]
+
+A more stable measure is \textbf{node expansions} (nodes popped from the heap):
+\[
+\text{A* expansions}\approx 29.81,\qquad
+\text{Neural A* expansions}\approx 29.30.
+\]
+
+Interpretation:
+\begin{itemize}
+    \item In this run, Neural A* matches A* closely (success and length), with similar expansions.
+    \item Runtime includes overheads (Python, GPU transfer, etc.), so expansions is a cleaner algorithmic signal.
+\end{itemize}
+\end{frame}
+
+% ============================================================
+% Insert after your existing "Runtime and Expansions" frame
+% inside the Experiments & Results section (before Limitations)
+% ============================================================
+
+\subsection{Baseline Pack (Extended)}
+
+\begin{frame}{Baseline Pack: Experimental Protocol}
+\small
+\begin{itemize}
+  \item \textbf{Goal:} evaluate planners on the \textit{same} held-out test graphs.
+  \item \textbf{Environment:} $N\times N$ grid graph, 4-neighborhood, unit edge costs.
+  \item \textbf{Planners compared:}
+    \begin{itemize}
+      \item \textbf{BFS} (optimal for unit costs), \textbf{Dijkstra} (general shortest path),
+      \textbf{A*} (Manhattan heuristic)
+      \item \textbf{Greedy-GNN} (local max-prob neighbor decoding)
+      \item \textbf{Neural A*} (A* with GNN bias term)
+    \end{itemize}
+  \item \textbf{Metrics:} success rate, path length ratio vs.\ BFS, runtime, and node expansions (search-based only).
+\end{itemize}
+
+\vspace{1mm}
+\footnotesize
+\textbf{Note:} “Expansions” = number of nodes popped from a frontier/heap, hence it is defined for BFS/Dijkstra/A*/Neural A* but not for Greedy-GNN (policy-like decoding).
+\end{frame}
+
+\begin{frame}[t]{Baseline Pack: Overview (4 Metrics)}
+\vspace{-3mm}
+\begin{columns}[T,onlytextwidth]
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.37\textheight,keepaspectratio]{figures/baseline_success.png}\\[-1mm]
+  \scriptsize Success Rate
+
+  \vspace{1mm}
+  \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{figures/baseline_expansions.png}\\[-1mm]
+  \scriptsize Frontier Pops / Expansions
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.37\textheight,keepaspectratio]{figures/baseline_len_ratio.png}\\[-1mm]
+  \scriptsize Path Length Ratio vs BFS
+
+  \vspace{1mm}
+  \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{figures/baseline_runtime.png}\\[-1mm]
+  \scriptsize Runtime (Mean per Instance)
+\end{columns}
+\end{frame}
+
+% ------------------------------------------------------------
+% Optional: qualitative paths (highly recommended)
+% ------------------------------------------------------------
+\begin{frame}[t]{Qualitative: Same Map, Different Planners}
+\vspace{-3mm}
+
+\begin{columns}[T,onlytextwidth]
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=0.82\linewidth,height=0.34\textheight,keepaspectratio]{figures/paths_bfs.png}\\[-1mm]
+  \footnotesize BFS (optimal)\par\vspace{1mm}
+  \includegraphics[width=0.82\linewidth,height=0.34\textheight,keepaspectratio]{figures/paths_greedy.png}\\[-1mm]
+  \footnotesize Greedy-GNN\par
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=0.82\linewidth,height=0.34\textheight,keepaspectratio]{figures/paths_astar.png}\\[-1mm]
+  \footnotesize A*\par\vspace{1mm}
+  \includegraphics[width=0.82\linewidth,height=0.34\textheight,keepaspectratio]{figures/paths_neural.png}\\[-1mm]
+  \footnotesize Neural A* (GNN-guided)\par
+\end{columns}
+
+\vspace{1.5mm}
+\centering
+\scriptsize Greedy can detour (local choice); Neural A* keeps global search with a learned bias.
+\end{frame}
+
+
+
+% ------------------------------------------------------------
+% Optional: summary table slide (fill numbers from your JSON)
+% ------------------------------------------------------------
+\begin{frame}{Baseline Pack: Summary Table (test\_data)}
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Method} & \textbf{Success} & \textbf{Len Ratio vs BFS} & \textbf{Avg Time (s)} & \textbf{Avg Expansions} \\
+\midrule
+BFS        & 1.00 & 1.00 & 0.00103 & 165.05 \\
+Dijkstra   & 1.00 & 1.00 & 0.00107 & 165.47 \\
+A*         & 1.00 & 1.00 & 0.00095 & 38.41 \\
+Greedy-GNN & 1.00 & 1.35 & 0.00108 & \texttt{N/A} \\
+Neural A*  & 1.00 & 1.00 & 0.00116 & 33.91 \\
+\bottomrule
+\end{tabular}
+
+\vspace{2mm}
+\footnotesize
+\textbf{Report:} mean (and optionally p95) over test instances. Use BFS as the optimal reference for unit-cost grids.
+\end{frame}
+
+
+\begin{frame}{Key Takeaways from Baseline Pack}
+\small
+\begin{itemize}
+  \item \textbf{Correctness baseline:} BFS/Dijkstra/A* return shortest paths on unit-cost grids (as expected).
+  \item \textbf{Greedy limitation:} a local probability-following policy can detour or get trapped (no backtracking).
+  \item \textbf{Hybrid benefit:} Neural A* preserves search reliability while using the GNN to reduce search effort (fewer expansions) in many runs.
+\end{itemize}
+
+\vspace{1mm}
+\footnotesize
+(If your Neural A* expansions improvement is small, say: “matches A* closely; learned bias does not hurt optimality in this setting.”)
+\end{frame}
+
+
+% ============================================================
+% NEW SUBSECTION: SIZE SCALING (20x20 -> 50x50)  [FILLED]
+% Insert after: "Baseline Pack: Summary Table (test data)"
+% ============================================================
+
+% ============================================================
+% UPDATED SCALING SUBSECTION (N = 20, 50, 100, 250)  [FILLED]
+% Uses latest df_scale numbers you provided.
+% ============================================================
+
+\subsection{Size Scaling: 20$\times$20 $\rightarrow$ 50, 100, 250}
+
+\begin{frame}{Size Scaling Experiment: Setup (20$\times$20 $\rightarrow$ 50, 100, 250)}
+\begin{itemize}
+    \item \textbf{Goal:} test size generalisation of learned guidance and how \textbf{search effort} scales.
+    \item \textbf{Train:} $20\times20$ grids, teacher = \textbf{pure A*} (Manhattan heuristic).
+    \item \textbf{Test:} $N\times N$ grids with $N\in\{50,100,250\}$ (zero-shot; no retraining).
+    \item \textbf{Obstacle density:} $p_{\text{block}}=0.2$.
+    \item \textbf{Test set sizes (solvable-only generation):}
+    \[
+      N=20:\,177\quad N=50:\,300\quad N=100:\,150\quad N=250:\,60
+    \]
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Compared planners (scaling focus):}
+\begin{itemize}
+    \item A* (baseline) vs Neural A* (GNN-guided)
+    \item Neural A* scoring:
+    \[
+      f(n)=g(n)+h(n)+\alpha\bigl(1-\hat{y}_n\bigr),\quad \alpha=2.0
+    \]
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}{Size Scaling: Metrics and Interpretation}
+\begin{columns}
+\column{0.58\textwidth}
+\begin{itemize}
+    \item \textbf{Success rate}: valid path found.
+    \item \textbf{Search effort (expansions)}: nodes popped from frontier/heap.
+    \item \textbf{Tail robustness}: p95 expansions (hard cases).
+    \item \textbf{Runtime}: mean time per instance (implementation dependent).
+\end{itemize}
+
+\column{0.42\textwidth}
+\begin{block}{How to read scaling}
+\begin{itemize}
+    \item Same success, fewer expansions $\Rightarrow$ better guidance.
+    \item p95 improvements matter most (hard instances).
+    \item Runtime may not improve due to GNN inference overhead.
+\end{itemize}
+\end{block}
+\end{columns}
+\end{frame}
+
+
+\begin{frame}{Scaling Result: Search Effort vs Size (Mean Expansions)}
+\begin{center}
+    % Exported from notebook (recommended):
+    % figures/scaling/expansions_vs_N_20_50_100_250.png
+    \includegraphics[width=0.88\linewidth]{figures/scaling/expansions_vs_N_20_50_100_250.png}
+\end{center}
+
+\vspace{-0.5em}
+\begin{block}{Filled from latest results}
+\small
+\begin{itemize}
+    \item Mean expansions (A* $\rightarrow$ Neural A*):
+    \[
+      20:~33.58\rightarrow29.10,\quad
+      50:~136.10\rightarrow119.42,\quad
+      100:~512.63\rightarrow414.46,\quad
+      250:~2823.38\rightarrow2542.35
+    \]
+    \item Absolute savings grow with size: \textbf{4.48, 16.68, 98.17, 281.03} fewer pops.
+\end{itemize}
+\end{block}
+\end{frame}
+
+
+\begin{frame}{Scaling Result: Expansion Savings Grow with Size}
+\begin{center}
+    % Exported from notebook (recommended):
+    % figures/scaling/expansion_gap_abs_vs_N_20_50_100_250.png
+    \includegraphics[width=0.88\linewidth]{figures/scaling/expansion_gap_abs_vs_N_20_50_100_250.png}
+\end{center}
+
+\vspace{-0.4em}
+\begin{itemize}
+    \item Relative savings (\%): \textbf{13.34\%, 12.26\%, 19.15\%, 9.95\%} for $N=\{20,50,100,250\}$.
+    \item \textbf{Key message:} while percentage varies, \textbf{absolute} savings increase substantially with $N$.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}{Robustness View: Tail Search Effort (p95 Expansions)}
+\begin{center}
+    % Exported from notebook (recommended):
+    % figures/scaling/expansions_p95_vs_N_20_50_100_250.png
+    \includegraphics[width=0.88\linewidth]{figures/scaling/expansions_p95_vs_N_20_50_100_250.png}
+\end{center}
+
+\vspace{-0.5em}
+\begin{block}{Filled from latest results}
+\small
+\begin{itemize}
+    \item p95 expansions (A* $\rightarrow$ Neural A*):
+    \[
+      20:~100.40\rightarrow80.60,\quad
+      50:~482.05\rightarrow318.10,\quad
+      100:~1719.35\rightarrow976.25,\quad
+      250:~11150.25\rightarrow6208.80
+    \]
+    \item Tail savings (A* - Neural A*): \textbf{19.80, 163.95, 743.10, 4941.45} fewer pops.
+\end{itemize}
+\end{block}
+\end{frame}
+
+
+\begin{frame}{Summary Table: Scaling (A* vs Neural A*)}
+\small
+\begin{table}
+\centering
+\begin{tabular}{rcccccc}
+\toprule
+\textbf{N} &
+\textbf{\#maps} &
+\textbf{Succ (A*)} &
+\textbf{Succ (Neural)} &
+\textbf{Exp (A*)} &
+\textbf{Exp (Neural)} &
+\textbf{Savings} \\
+\midrule
+20  & 177 & 1.00 & 1.00 & 33.58  & 29.10  & 4.48  (13.34\%) \\
+50  & 300 & 1.00 & 1.00 & 136.10 & 119.42 & 16.68 (12.26\%) \\
+100 & 150 & 1.00 & 1.00 & 512.63 & 414.46 & 98.17 (19.15\%) \\
+250 & 60  & 1.00 & 1.00 & 2823.38& 2542.35& 281.03 (9.95\%) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{-0.4em}
+\footnotesize
+Exp = mean expansions (nodes popped). Savings = A* minus Neural A* (absolute and relative).
+\end{frame}
+
+
+\begin{frame}{Runtime Snapshot (Mean Time per Instance)}
+\small
+\begin{table}
+\centering
+\begin{tabular}{rcccc}
+\toprule
+\textbf{N} & \textbf{A* time (s)} & \textbf{Neural A* time (s)} & \textbf{$\Delta$ time (s)} & \textbf{Comment} \\
+\midrule
+20  & 0.000677 & 0.000819 & +0.000142 & GNN inference overhead \\
+50  & 0.001310 & 0.001986 & +0.000676 & overhead dominates at this size \\
+100 & 0.015863 & 0.017787 & +0.001924 & both grow with problem size \\
+250 & 0.138579 & 0.143650 & +0.005071 & expansions saved, but inference still costs \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{-0.4em}
+\footnotesize
+Runtime is implementation/hardware dependent; expansions are the primary scaling signal.
+\end{frame}
+
+
+\begin{frame}{Takeaways from Size Scaling (20$\times$20 $\rightarrow$ 50, 100, 250)}
+\begin{itemize}
+    \item \textbf{Generalisation:} A*-supervised GNN guidance transfers to much larger grids without retraining.
+    \item \textbf{Efficiency:} Neural A* consistently expands fewer nodes than A*; \textbf{absolute savings grow} with $N$.
+    \item \textbf{Hard cases:} tail improvements are substantial (p95 savings reach \textbf{4941} fewer pops at $250\times250$).
+    \item \textbf{Trade-off:} Neural A* is slightly slower due to inference overhead, despite reduced search effort.
+\end{itemize}
+
+\vspace{0.35em}
+\textbf{Caveat (honest):}
+\begin{itemize}
+    \item Datasets are \textbf{solvable-only} and sample counts vary by size (e.g., $N=250$ has 60 maps).
+\end{itemize}
+\end{frame}
+
+
+% OPTIONAL: keep your ablations slide as-is (no number changes needed)
+% \begin{frame}{Ablations to Add (Recommended)}{To make results scientifically stronger}
+% Ablations that map directly to your code:
+% \begin{itemize}
+%     \item \textbf{Heuristic strength:} sweep $\alpha$ in Neural A*:
+%     \[
+%     f = g + h + \alpha(1-\hat y) \quad \Rightarrow \quad \alpha \in \{0,0.5,1,2,5\}.
+%     \]
+%     \item \textbf{Depth:} vary $L$ (e.g., $2,3,5,8$) to test over-smoothing vs expressivity.
+%     \item \textbf{Labeling:} compare hard labels ($\{0,1\}$) vs soft labels ($\{0,0.3,1\}$).
+%     \item \textbf{Features:} remove Manhattan-to-goal / Euclid-to-goal to measure reliance on engineered signals.
+% \end{itemize}
+% \end{frame}
+
+% =================================================
+% 6) Limitations
+% =================================================
+\section{Limitations}
+
+\begin{frame}{Limitations}{What the current notebook does \emph{not} guarantee}
+\begin{itemize}
+    \item \textbf{Node classification $\neq$ path correctness:} high node-level accuracy does not ensure a connected, feasible path.
+    \item \textbf{Greedy decoding brittleness:} success rate $\approx 0.35$ despite decent F1.
+    \item \textbf{No optimality guarantee for learned bias:} Neural A* modifies $f$; admissibility is not preserved in general:
+    \[
+    h'(n)=h(n)+\alpha(1-\hat y_n)\ \not\le\ h^\star(n)\ \text{necessarily}.
+    \]
+    \item \textbf{Distribution dependence:} trained on $N=20$, $p_{\text{block}}=0.2$; performance may shift for different sizes/densities.
+\end{itemize}
+\end{frame}
+
+% =================================================
+% 7) Conclusion
+% =================================================
+\section{Conclusion}
+
+\begin{frame}{Conclusion}{What we can honestly claim from current results}
+\begin{itemize}
+    \item We built a full pipeline: grid $\rightarrow$ A* labels $\rightarrow$ PyG graphs $\rightarrow$ GraphSAGE training $\rightarrow$ planner evaluation.
+    \item The model learns useful \textbf{local path saliency}: test $F_1 \approx 0.436$ under tuned thresholding.
+    \item \textbf{Greedy GNN planning is unreliable} on this setup (success $\approx 0.35$).
+    \item \textbf{Hybrid search (Neural A*) recovers robust planning:} success $=1.0$ and average length matches A* in this run.
+\end{itemize}
+\end{frame}
+
+% =================================================
+% 8) Future Work
+% =================================================
+\section{Future Work}
+
+\begin{frame}{Future Work}{Concrete next steps that align with your code}
+\begin{itemize}
+    \item \textbf{Generalisation tests:} train on $N=20$ and test on $N\in\{25,30,40\}$; also sweep $p_{\text{block}}$.
+    \item \textbf{Hybrid improvements:} learn a value function $\hat V_\theta(n)\approx h^\star(n)$ and use:
+    \[
+    f(n)=g(n)+\hat V_\theta(n),
+    \]
+    (optionally enforce calibration / monotonicity).
+    \item \textbf{Better decoding:} replace greedy with constrained shortest-path on high-prob subgraph, or beam search.
+    \item \textbf{Report expansions formally:} expansions vs. graph size is the cleanest algorithmic scaling metric.
+\end{itemize}
+\end{frame}
+
+% =================================================
+% 9) Related Work / Literature
+% =================================================
+\section{Related Work / Literature}
+
+\begin{frame}{Related Work (Pointers)}{Where this sits in the literature}
+\begin{itemize}
+    \item \textbf{Classical search:} shortest path and heuristic search (Dijkstra, A*).
+    \item \textbf{GNN foundations:} message passing / inductive learning on graphs.
+    \item \textbf{Learning to plan:} learning heuristics, value functions, or policies to guide search.
+\end{itemize}
+
+\vspace{0.2cm}
+For your final version, include 5--10 key citations (A*, Dijkstra, GraphSAGE, MPNNs, learning-to-search).
+\end{frame}
+
+\begin{frame}{What is the “contribution” here?}{How to phrase it academically}
+A defensible scientific framing:
+\begin{itemize}
+    \item A clean \textbf{end-to-end experimental pipeline} for comparing:
+    \[
+    \text{Pure A*} \;\; \text{vs.} \;\; \text{Greedy learned decoding} \;\; \text{vs.} \;\; \text{Hybrid learned-guided A*}.
+    \]
+    \item Empirical evidence that \textbf{node-level prediction quality does not imply planner success} (greedy failure).
+    \item Empirical evidence that \textbf{hybridisation preserves classical reliability} while injecting learned bias.
+\end{itemize}
+This is strong as an MSc project if you back it with generalisation + ablations.
+\end{frame}
+
+% =================================================
+% 10) Q&A
+% =================================================
+\section*{Q\&A}
+
+\begin{frame}{Q\&A}{}
+\centering
+{\Large Questions?}
+
+\vspace{0.4cm}
+\small
+(Optionally: add preprint / repo link in footer)
+\end{frame}
+
+\end{document}
